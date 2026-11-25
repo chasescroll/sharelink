@@ -7,12 +7,12 @@ import { notFound } from 'next/navigation'
 // THIS PAGE HAS TO BE SERVER RENDERED
 
 interface Props {
-    params: {
+    params: Promise<{
         type: string;
-    },
-    searchParams: {
+    }>;
+    searchParams: Promise<{
         userId: string
-    }
+    }>;
 }
 
 export default async function ExternalPage({ params, searchParams }: Props) {

@@ -12,8 +12,9 @@ export const revalidate = 60; // or any interval
 
 
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const { id } = params;
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
+  const id = params?.id;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL as string;
 
   try {

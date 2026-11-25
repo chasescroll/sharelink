@@ -4,10 +4,11 @@ import { RESOURCE_URL } from "@/constants";
 // ✅ This route returns static OG HTML for WhatsApp, LinkedIn, etc.
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL as string;
-  const eventId = params.id;
+  const { id } = await params;
+  const eventId = id;
 
   try {
     // Fetch event data from your backend

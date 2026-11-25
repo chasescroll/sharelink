@@ -15,18 +15,11 @@ import ChasescrollBox from '@/components/Custom/ChasescrollBox'
 import { DateTime } from 'luxon'
 import { capitalizeFLetter } from '@/utils/capitalizeLetter'
 import TicketSelection from '@/components/Custom/modals/TicketPurchaseModal/TicketSelection'
+import { useParams } from 'next/navigation'
 
-interface Props {
-    params: {
-        id: string
-    },
-    searchParams: {
-        id: string
-    }
-}
-
-function TicketSalePage({ params, }: Props) {
-    const { id } = params;
+function TicketSalePage() {
+    const routeParams = useParams();
+    const id = (routeParams?.id as string) || '';
     const [event, setEvent] = React.useState<IEventType | null>(null);
 
     const { isLoading, data, isError, error } = useQuery<AxiosResponse<PaginatedResponse<IEventType>>>({
