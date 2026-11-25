@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
 // ✅ Universal image proxy for OG crawlers (WhatsApp, LinkedIn, etc.)
 export async function GET(
   _req: Request,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const imagePath = params.path.join("/");
+  const { path } = await params;
+  const imagePath = (path || []).join("/");
   const externalBaseUrl = "https://chasescroll-sharelink.vercel.app/"
 
   // Support both absolute and relative image paths

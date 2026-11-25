@@ -3,8 +3,8 @@ import { Metadata } from 'next'
 import { RESOURCE_URL } from '@/constants'
 
 interface Props {
-    params: { type: string }
-    searchParams: { id: string; affiliateID?: string }
+    params: Promise<{ type: string }>
+    searchParams: Promise<{ id?: string; affiliateID?: string }>
 }
 
 // ✅ Force server-side static generation so crawlers (WhatsApp, LinkedIn, etc.) see OG tags
@@ -141,8 +141,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
 // ✅ Render page dynamically by type
 export default async function SharePage({ params, searchParams }: Props) {
-    const { type } = params
-    const { id, affiliateID } = searchParams
+    const { type } = await params
+    const resolvedSearchParams = (await searchParams) || {}
+    const { id = '', affiliateID } = resolvedSearchParams
 
     const allowedTypes = ['event', 'fundraiser', 'service', 'rental', 'product']
     if (!allowedTypes?.includes(type?.toLowerCase())) {
