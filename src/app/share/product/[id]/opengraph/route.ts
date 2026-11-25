@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { RESOURCE_URL } from "@/constants";
 import { capitalizeFLetter } from "@/utils/capitalizeLetter";
+import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 export async function GET(
   request: Request,
@@ -12,57 +12,36 @@ export async function GET(
   const { id } = await params;
   const rawBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://test-api.chasescroll.com";
   const apiBaseUrl = rawBaseUrl.replace(/\/+$/, "");
+  const url = new URL(request.url);
+  const fallbackLogo = `${url.origin}/logo.png`;
+  const redirectUrl = `${url.origin}/share/product/${id}`;
 
   try {
-    const url = new URL(request.url);
-
-    // Fetch product data from backend
-    const res = await fetch(`${apiBaseUrl}/products/search?id=${id}`, {
+    const res = await fetchWithTimeout(`${apiBaseUrl}/products/search?id=${id}`, {
       cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+    }, 6000);
 
-    if (!res.ok) {
-      throw new Error(`Failed to fetch product data: ${res.statusText}`);
-    }
-
-    const data = await res.json();
+    const data = res.ok ? await res.json() : null;
     const product = data?.content?.[0];
 
-    if (!product) {
-      return new NextResponse("Product not found", { status: 404 });
-    }
-
-    const productName = capitalizeFLetter(product?.name || "Product");
+    const productName = product?.name ? capitalizeFLetter(product.name) : "Product | Chasescroll";
     const productDescription =
       product?.description || "Check out this product on Chasescroll";
 
-    let imageUrl = `${url.origin}/logo.png`;
+    let imageUrl = fallbackLogo;
     if (product?.images && Array.isArray(product.images) && product.images.length > 0) {
       const firstImage = product.images[0];
       if (typeof firstImage === "string") {
-        if (firstImage.startsWith("http://") || firstImage.startsWith("https://")) {
-          imageUrl = firstImage;
-        } else {
-          imageUrl = `${RESOURCE_URL}${firstImage}`;
-        }
+        imageUrl = firstImage.startsWith("http") ? firstImage : `${RESOURCE_URL}${firstImage}`;
       }
     }
 
-    const redirectPath = `/share/product/${id}`;
-    const redirectUrl = new URL(redirectPath, url.origin).toString();
-    const currentPageUrl = url.toString();
-
-    // Construct Open Graph metadata HTML
     const html = `
       <!DOCTYPE html>
       <html lang="en">
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          
           <title>${productName} | Chasescroll</title>
 
           <!-- Open Graph -->
@@ -73,7 +52,7 @@ export async function GET(
           <meta property="og:image:secure_url" content="${imageUrl}" />
           <meta property="og:image:width" content="1200" />
           <meta property="og:image:height" content="630" />
-          <meta property="og:url" content="${currentPageUrl}" />
+          <meta property="og:url" content="${url.toString()}" />
           <meta property="og:site_name" content="Chasescroll" />
 
           <!-- Twitter -->
@@ -146,13 +125,32 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
-        "CDN-Cache-Control": "no-store",
-        "Vercel-CDN-Cache-Control": "no-store",
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600",
       },
     });
   } catch (error) {
     console.error("Error generating OG page for product:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    const fallbackHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Product | Chasescroll</title>
+          <meta property="og:title" content="Product | Chasescroll" />
+          <meta property="og:image" content="${fallbackLogo}" />
+          <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+        </head>
+        <body>
+          <script>window.location.href = ${JSON.stringify(redirectUrl)};</script>
+        </body>
+      </html>
+    `;
+    return new NextResponse(fallbackHtml, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   }
 }
