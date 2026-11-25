@@ -1,77 +1,105 @@
 import { NextResponse } from "next/server";
 import { RESOURCE_URL } from "@/constants";
+import { capitalizeFLetter } from "@/utils/capitalizeLetter";
+import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
 
-// ✅ This route returns static OG HTML for WhatsApp, LinkedIn, etc.
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL as string;
-  const { id } = await params;
-  const eventId = id;
+  const rawBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://test-api.chasescroll.com";
+  const apiBaseUrl = rawBaseUrl.replace(/\/+$/, "");
+  const { id: eventId } = await params;
+  const url = new URL(request.url);
+  const fallbackLogo = `${url.origin}/logo.png`;
+  const redirectUrl = `${url.origin}/event/${eventId}`;
 
   try {
-    // Fetch event data from your backend
-    const res = await fetch(`${baseUrl}/events/events?id=${eventId}`, {
+    const res = await fetchWithTimeout(`${apiBaseUrl}/events/events?id=${eventId}`, {
       cache: "no-store",
-    });
+    }, 6000);
 
-    if (!res.ok) {
-      throw new Error(`Failed to fetch event data: ${res.statusText}`);
-    }
-
-    const data = await res.json();
+    const data = res.ok ? await res.json() : null;
     const event = data?.content?.[0];
 
-    if (!event) {
-      return new NextResponse("Event not found", { status: 404 });
+    const title = event?.eventName ? capitalizeFLetter(event.eventName) : "Event | Chasescroll";
+    const description = event?.eventDescription || "Check out this event on Chasescroll";
+    
+    let imageUrl = fallbackLogo;
+    if (event?.picUrls && Array.isArray(event.picUrls) && event.picUrls.length > 0) {
+      const firstPic = event.picUrls[0];
+      imageUrl = firstPic.startsWith("http") ? firstPic : `${RESOURCE_URL}${firstPic}`;
+    } else if (event?.currentPicUrl) {
+      imageUrl = event.currentPicUrl.startsWith("http") ? event.currentPicUrl : `${RESOURCE_URL}${event.currentPicUrl}`;
     }
 
-    const imageUrl = `https://share.chasescroll.com/api/og-image/${encodeURIComponent(
-        RESOURCE_URL+event.picUrls[0]
-      )}`;
-
-    // Construct Open Graph metadata HTML
     const html = `
       <!DOCTYPE html>
       <html lang="en">
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          
-          <title>${event.eventName}</title>
-          <meta name="description" content="${event.eventDescription}" />
+          <title>${title}</title>
+          <meta name="description" content="${description}" />
 
-          <!-- ✅ Open Graph -->
+          <!-- Open Graph -->
           <meta property="og:type" content="website" />
-          <meta property="og:title" content="${event.eventName}" />
-          <meta property="og:description" content="${event.eventDescription}" />
+          <meta property="og:title" content="${title}" />
+          <meta property="og:description" content="${description}" />
           <meta property="og:image" content="${imageUrl}" />
-          <meta property="og:url" content="${baseUrl}/events/${eventId}" />
+          <meta property="og:url" content="${redirectUrl}" />
+          <meta property="og:site_name" content="Chasescroll" />
 
-          <!-- ✅ Twitter -->
+          <!-- Twitter -->
           <meta name="twitter:card" content="summary_large_image" />
-          <meta name="twitter:title" content="${event.eventName}" />
-          <meta name="twitter:description" content="${event.eventDescription}" />
+          <meta name="twitter:title" content="${title}" />
+          <meta name="twitter:description" content="${description}" />
           <meta name="twitter:image" content="${imageUrl}" />
 
-          <meta http-equiv="refresh" content="0; url=${baseUrl}/events/${eventId}" />
+          <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
         </head>
         <body>
           <p>Redirecting to event...</p>
           <script>
-            // Fallback redirect for crawlers that ignore meta refresh
-            window.location.href = "${baseUrl}/events/${eventId}";
+            window.location.href = ${JSON.stringify(redirectUrl)};
           </script>
         </body>
       </html>
     `;
 
     return new NextResponse(html, {
-      headers: { "Content-Type": "text/html" },
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600",
+      },
     });
   } catch (error) {
-    console.error("Error generating OG page:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("Error generating OG page for event:", error);
+    // Graceful fallback to avoid 500 error spikes
+    const fallbackHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Event | Chasescroll</title>
+          <meta property="og:title" content="Event | Chasescroll" />
+          <meta property="og:image" content="${fallbackLogo}" />
+          <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+        </head>
+        <body>
+          <script>window.location.href = ${JSON.stringify(redirectUrl)};</script>
+        </body>
+      </html>
+    `;
+    return new NextResponse(fallbackHtml, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   }
 }

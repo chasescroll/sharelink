@@ -1,54 +1,40 @@
 import { NextResponse } from "next/server";
 import { RESOURCE_URL } from "@/constants";
 import { capitalizeFLetter } from "@/utils/capitalizeLetter";
+import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL as string;
+  const rawBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://test-api.chasescroll.com";
+  const apiBaseUrl = rawBaseUrl.replace(/\/+$/, "");
+  const url = new URL(request.url);
+  const fallbackLogo = `${url.origin}/logo.png`;
+  const redirectUrl = `${url.origin}/share/service/${id}`;
 
   try {
-    const url = new URL(request.url);
-
-    const res = await fetch(`${baseUrl}/business-service/search?id=${id}`, {
+    const res = await fetchWithTimeout(`${apiBaseUrl}/business-service/search?id=${id}`, {
       cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+    }, 6000);
 
-    if (!res.ok) {
-      throw new Error(`Failed to fetch service data: ${res.statusText}`);
-    }
-
-    const data = await res.json();
+    const data = res.ok ? await res.json() : null;
     const service = data?.content?.[0];
 
-    if (!service) {
-      return new NextResponse("Service not found", { status: 404 });
-    }
+    const serviceName = service?.name ? capitalizeFLetter(service.name) : "Service | Chasescroll";
+    const serviceDescription =
+      service?.description || "Check out this service on Chasescroll";
 
-    const serviceName = capitalizeFLetter(service?.name || "Service");
-    const serviceDescription = service?.description || "Check out this service on Chasescroll";
-
-    let imageUrl = `${baseUrl}/logo.png`;
+    let imageUrl = fallbackLogo;
     if (service?.images && Array.isArray(service.images) && service.images.length > 0) {
       const firstImage = service.images[0];
-      if (firstImage.startsWith("http://") || firstImage.startsWith("https://")) {
-        imageUrl = firstImage;
-      } else {
-        imageUrl = `${RESOURCE_URL}${firstImage}`;
+      if (typeof firstImage === "string") {
+        imageUrl = firstImage.startsWith("http") ? firstImage : `${RESOURCE_URL}${firstImage}`;
       }
     }
-
-    const redirectPath = `/share/service/${id}`;
-    const redirectUrl = new URL(redirectPath, url.origin).toString();
-    const currentPageUrl = url.toString();
 
     const html = `
       <!DOCTYPE html>
@@ -56,7 +42,6 @@ export async function GET(
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          
           <title>${serviceName} | Chasescroll</title>
 
           <!-- Open Graph -->
@@ -67,7 +52,7 @@ export async function GET(
           <meta property="og:image:secure_url" content="${imageUrl}" />
           <meta property="og:image:width" content="1200" />
           <meta property="og:image:height" content="630" />
-          <meta property="og:url" content="${currentPageUrl}" />
+          <meta property="og:url" content="${url.toString()}" />
           <meta property="og:site_name" content="Chasescroll" />
 
           <!-- Twitter -->
@@ -140,14 +125,32 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
-        "CDN-Cache-Control": "no-store",
-        "Vercel-CDN-Cache-Control": "no-store",
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600",
       },
     });
   } catch (error) {
     console.error("Error generating OG page for service:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    const fallbackHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Service | Chasescroll</title>
+          <meta property="og:title" content="Service | Chasescroll" />
+          <meta property="og:image" content="${fallbackLogo}" />
+          <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+        </head>
+        <body>
+          <script>window.location.href = ${JSON.stringify(redirectUrl)};</script>
+        </body>
+      </html>
+    `;
+    return new NextResponse(fallbackHtml, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   }
 }
-
