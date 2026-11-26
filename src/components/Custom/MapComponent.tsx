@@ -97,7 +97,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             position={center}
             onClick={onMarkerClick}
             title={markerTitle}
-            animation={window.google?.maps?.Animation?.DROP}
+            animation={typeof window !== "undefined" ? window.google?.maps?.Animation?.DROP : undefined}
           />
           
           {showInfoWindow && (

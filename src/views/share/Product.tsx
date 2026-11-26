@@ -23,7 +23,11 @@ import ShareButton from '@/components/Custom/ShareButton';
 import DescriptionCard from '@/components/Custom/description';
 import GetCreatorData from '@/components/getCreatorData';
 import ProductCheckout from '@/components/productCheckout';
-import ProductModal from '@/components/Custom/modals/ProductModal/ProductModal';
+import dynamic from 'next/dynamic';
+const ProductModal = dynamic(
+    () => import('@/components/Custom/modals/ProductModal/ProductModal'),
+    { ssr: false }
+);
 import {
     activeProductAtom,
     activeProductQuantityAtom,

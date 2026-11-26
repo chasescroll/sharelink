@@ -16,7 +16,11 @@ import {
     affiliateIDAtom,
     ticketurchaseStepAtom,
 } from "@/states/activeTicket";
-import TicketPurchaseModal from "@/components/Custom/modals/TicketPurchaseModal/Index";
+import dynamic from "next/dynamic";
+const TicketPurchaseModal = dynamic(
+    () => import("@/components/Custom/modals/TicketPurchaseModal/Index"),
+    { ssr: false }
+);
 import { toaster } from "@/components/ui/toaster";
 import { STORAGE_KEYS } from "@/utils/StorageKeys";
 import BreadCrumbs from "@/components/Custom/breadcrumbs";
