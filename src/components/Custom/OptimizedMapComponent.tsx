@@ -124,7 +124,7 @@ const OptimizedMapComponent: React.FC<OptimizedMapComponentProps> = React.memo((
             position={center}
             onClick={handleMarkerClick}
             title={markerTitle}
-            animation={window.google?.maps?.Animation?.DROP}
+            animation={typeof window !== "undefined" ? window.google?.maps?.Animation?.DROP : undefined}
           />
 
           {showInfoWindow && (
@@ -132,7 +132,7 @@ const OptimizedMapComponent: React.FC<OptimizedMapComponentProps> = React.memo((
               position={center}
               onCloseClick={handleInfoWindowClose}
               options={{
-                pixelOffset: new window.google.maps.Size(0, -30)
+                pixelOffset: typeof window !== "undefined" && window.google?.maps?.Size ? new window.google.maps.Size(0, -30) : undefined
               }}
             >
               <Box p={2} maxW="200px">

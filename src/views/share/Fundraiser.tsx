@@ -17,7 +17,11 @@ import { DateTime } from 'luxon';
 import CustomText from '@/components/Custom/CustomText';
 import { useAtom, useSetAtom } from 'jotai';
 import { activeFundRaiserAtom } from '@/states/activeFundraiser';
-import FundRaiserModal from '@/components/Custom/modals/FundRaiserModal/Index';
+import dynamic from "next/dynamic";
+const FundRaiserModal = dynamic(
+    () => import("@/components/Custom/modals/FundRaiserModal/Index"),
+    { ssr: false }
+);
 import { formatNumber } from '@/utils/formatNumber';
 import { STORAGE_KEYS } from '@/utils/StorageKeys';
 import { ticketurchaseStepAtom } from '@/states/activeTicket';
